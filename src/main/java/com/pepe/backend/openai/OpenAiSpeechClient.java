@@ -2,6 +2,8 @@ package com.pepe.backend.openai;
 
 
 import com.pepe.backend.config.OpenAiProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -12,6 +14,10 @@ import java.util.Map;
 
 @Component
 public class OpenAiSpeechClient {
+
+    private static final Logger log = LoggerFactory.getLogger(OpenAiSpeechClient.class);
+    private static final String DEFAULT_MALE_ELDERLY_STYLE =
+            "Parla in italiano con voce chiaramente maschile, anziana, baritonale, lenta e rassicurante. Evita timbro femminile.";
 
     private final RestClient restClient;
     private final OpenAiProperties properties;
@@ -28,9 +34,14 @@ public class OpenAiSpeechClient {
         payload.put("input", text);
         payload.put("format", "mp3");
 
-        if (properties.getTtsStyleInstructions() != null && !properties.getTtsStyleInstructions().isBlank()) {
-            payload.put("instructions", properties.getTtsStyleInstructions());
+        String customStyle = properties.getTtsStyleInstructions();
+        if (customStyle != null && !customStyle.isBlank()) {
+            payload.put("instructions", DEFAULT_MALE_ELDERLY_STYLE + " " + customStyle);
+        } else {
+            payload.put("instructions", DEFAULT_MALE_ELDERLY_STYLE);
         }
+
+        log.info("Generating TTS audio with voice '{}'", properties.getTtsVoice());
 
         byte[] audio = restClient.post()
                 .uri(properties.getBaseUrl() + "/audio/speech")
