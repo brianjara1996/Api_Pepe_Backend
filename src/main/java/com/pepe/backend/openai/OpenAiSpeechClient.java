@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.Map;
 
 @Component
@@ -21,16 +22,21 @@ public class OpenAiSpeechClient {
     }
 
     public String speakToBase64(String text) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("model", properties.getTtsModel());
+        payload.put("voice", properties.getTtsVoice());
+        payload.put("input", text);
+        payload.put("format", "mp3");
+
+        if (properties.getTtsStyleInstructions() != null && !properties.getTtsStyleInstructions().isBlank()) {
+            payload.put("instructions", properties.getTtsStyleInstructions());
+        }
+
         byte[] audio = restClient.post()
                 .uri(properties.getBaseUrl() + "/audio/speech")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", "Bearer " + properties.getApiKey())
-                .body(Map.of(
-                        "model", properties.getTtsModel(),
-                        "voice", properties.getTtsVoice(),
-                        "input", text,
-                        "format", "mp3"
-                ))
+                .body(payload)
                 .retrieve()
                 .body(byte[].class);
 
