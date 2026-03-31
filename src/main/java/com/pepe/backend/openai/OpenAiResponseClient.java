@@ -13,9 +13,13 @@ import org.springframework.web.client.RestClient;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Component
 public class OpenAiResponseClient {
+    private static final int DEFAULT_MAX_OUTPUT_TOKENS = 60;
+    private static final String PROMPT_CACHE_VERSION = "peppe_v1";
+    private static final Pattern NON_CACHE_KEY_SAFE_CHARS = Pattern.compile("[^a-z0-9_\\-]");
 
     private final RestClient restClient;
     private final OpenAiProperties properties;
@@ -33,6 +37,23 @@ public class OpenAiResponseClient {
                               String familyTarget,
                               String region,
                               boolean dialectEnabled) {
+        return askPepeInternal(userText, profileName, familyTarget, region, dialectEnabled, false);
+    }
+
+    public AiDecision askPepeStream(String userText,
+                                    String profileName,
+                                    String familyTarget,
+                                    String region,
+                                    boolean dialectEnabled) {
+        return askPepeInternal(userText, profileName, familyTarget, region, dialectEnabled, true);
+    }
+
+    private AiDecision askPepeInternal(String userText,
+                                       String profileName,
+                                       String familyTarget,
+                                       String region,
+                                       boolean dialectEnabled,
+                                       boolean stream) {
         try {
             String instructions = buildInstructions(profileName, familyTarget, region, dialectEnabled);
 
@@ -56,6 +77,9 @@ public class OpenAiResponseClient {
 
             Map<String, Object> payload = new HashMap<>();
             payload.put("model", properties.getResponseModel());
+            payload.put("stream", stream);
+            payload.put("prompt_cache_key", buildPromptCacheKey(profileName));
+            payload.put("max_output_tokens", DEFAULT_MAX_OUTPUT_TOKENS);
             payload.put("input", List.of(
                     Map.of(
                             "role", "system",
@@ -80,13 +104,7 @@ public class OpenAiResponseClient {
                     )
             ));
 
-            JsonNode response = restClient.post()
-                    .uri(properties.getBaseUrl() + "/responses")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .header("Authorization", "Bearer " + properties.getApiKey())
-                    .body(payload)
-                    .retrieve()
-                    .body(JsonNode.class);
+            JsonNode response = stream ? fetchStreamingResponse(payload) : fetchNonStreamingResponse(payload);
 
             String jsonText = extractStructuredText(response);
             JsonNode parsed = objectMapper.readTree(jsonText);
@@ -107,6 +125,59 @@ public class OpenAiResponseClient {
         } catch (Exception e) {
             throw new RuntimeException("OpenAI response processing failed", e);
         }
+    }
+
+    private JsonNode fetchNonStreamingResponse(Map<String, Object> payload) {
+        return restClient.post()
+                .uri(properties.getBaseUrl() + "/responses")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", "Bearer " + properties.getApiKey())
+                .body(payload)
+                .retrieve()
+                .body(JsonNode.class);
+    }
+
+    private JsonNode fetchStreamingResponse(Map<String, Object> payload) throws Exception {
+        String rawStream = restClient.post()
+                .uri(properties.getBaseUrl() + "/responses")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .header("Authorization", "Bearer " + properties.getApiKey())
+                .body(payload)
+                .retrieve()
+                .body(String.class);
+
+        JsonNode completedResponse = null;
+        if (rawStream != null) {
+            String[] lines = rawStream.split("\\R");
+            for (String line : lines) {
+                if (!line.startsWith("data:")) {
+                    continue;
+                }
+                String data = line.substring(5).trim();
+                if (data.isBlank() || "[DONE]".equals(data)) {
+                    continue;
+                }
+                JsonNode event = objectMapper.readTree(data);
+                if ("response.completed".equals(event.path("type").asText()) && event.has("response")) {
+                    completedResponse = event.path("response");
+                } else if (event.has("output") || event.has("output_text")) {
+                    completedResponse = event;
+                }
+            }
+        }
+
+        if (completedResponse == null || completedResponse.isNull()) {
+            throw new IllegalStateException("No completed response found in stream");
+        }
+
+        return completedResponse;
+    }
+
+    private String buildPromptCacheKey(String profileName) {
+        String suffix = profileName == null || profileName.isBlank() ? "anon" : profileName.toLowerCase();
+        suffix = NON_CACHE_KEY_SAFE_CHARS.matcher(suffix).replaceAll("_");
+        return PROMPT_CACHE_VERSION + "_" + suffix;
     }
 
     private String buildInstructions(String profileName, String familyTarget, String region, boolean dialectEnabled) {

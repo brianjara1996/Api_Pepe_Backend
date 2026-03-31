@@ -126,7 +126,7 @@ public class PepeService {
         String familyTarget = fallback(request.getFamilyTarget(), appProperties.getDefaultFamilyTarget());
 
         CompletableFuture<AiDecision> decisionFuture = CompletableFuture.supplyAsync(() ->
-                responseClient.askPepe(
+                responseClient.askPepeStream(
                         request.getText(),
                         profileName,
                         familyTarget,
