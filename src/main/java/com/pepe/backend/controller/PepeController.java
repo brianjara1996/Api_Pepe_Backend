@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/api")
@@ -24,6 +25,11 @@ public class PepeController {
         return pepeService.processText(request);
     }
 
+    @PostMapping(value = "/text/process/stream", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter processTextStream(@Valid @RequestBody TextProcessRequest request) {
+        return pepeService.processTextStream(request);
+    }
+
     @PostMapping(value = "/voice/process", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public PepeResponseDto processVoice(
             @RequestPart("audio") MultipartFile audio,
@@ -32,4 +38,3 @@ public class PepeController {
         return pepeService.processVoice(audio, profileName, familyTarget);
     }
 }
-
