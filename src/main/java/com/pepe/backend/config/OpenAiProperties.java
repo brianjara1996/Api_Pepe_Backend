@@ -13,6 +13,7 @@ public class OpenAiProperties {
     private String responseModel;
     private String ttsModel;
     private String ttsVoice;
+    private String ttsStyleInstructions;
 
     public String getApiKey() {
         return apiKey;
@@ -60,5 +61,13 @@ public class OpenAiProperties {
 
     public void setTtsVoice(String ttsVoice) {
         this.ttsVoice = ttsVoice;
+    }
+
+    public String getTtsStyleInstructions() {
+        return ttsStyleInstructions;
+    }
+
+    public void setTtsStyleInstructions(String ttsStyleInstructions) {
+        this.ttsStyleInstructions = ttsStyleInstructions;
     }
 }

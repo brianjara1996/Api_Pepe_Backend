@@ -12,6 +12,8 @@ import org.springframework.web.client.RestClient;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.Locale;
 
 @Component
 public class OpenAiResponseClient {
@@ -19,6 +21,13 @@ public class OpenAiResponseClient {
     private final RestClient restClient;
     private final OpenAiProperties properties;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private static final Set<String> WEB_SEARCH_KEYWORDS = Set.of(
+            "partita", "partite", "risultato", "risultati", "classifica",
+            "meteo", "tempo", "temperatura", "pioggia",
+            "notizia", "notizie", "ultime notizie", "oggi",
+            "prezzo", "prezzi", "quotazione", "quotazioni", "borsa",
+            "orario", "orari", "treno", "treni", "autobus", "volo", "voli"
+    );
 
     public OpenAiResponseClient(RestClient restClient, OpenAiProperties properties) {
         this.restClient = restClient;
@@ -63,6 +72,11 @@ public class OpenAiResponseClient {
                             "content", List.of(Map.of("type", "input_text", "text", userText))
                     )
             ));
+            if (requiresWebSearch(userText)) {
+                payload.put("tools", List.of(
+                        Map.of("type", "web_search")
+                ));
+            }
             payload.put("text", Map.of(
                     "format", Map.of(
                             "type", "json_schema",
@@ -110,6 +124,11 @@ public class OpenAiResponseClient {
                 - usa frasi brevi e calde
                 - non usare linguaggio tecnico
                 - sii paziente, gentile e rassicurante
+                - risposte rapide SENZA web: chat normale, domande personali, promemoria, messaggi
+                - risposte CON web: partite, notizie, meteo, prezzi, orari
+                - usa web search solo se la domanda rientra nei casi CON web
+                - se la domanda non richiede dati attuali/recenti, rispondi direttamente senza internet
+                - non inventare mai informazioni attuali: se non trovi dati affidabili, dillo chiaramente
                 - se l'utente chiede di mandare un messaggio, imposta action.type = send_whatsapp
                 - se l'utente chiede di leggere l'ultimo messaggio, imposta action.type = read_last_whatsapp_message
                 - se non serve alcuna azione, imposta action.type = conversation
@@ -152,5 +171,14 @@ public class OpenAiResponseClient {
         }
 
         throw new IllegalStateException("No structured text found in OpenAI response");
+    }
+
+    private boolean requiresWebSearch(String userText) {
+        if (userText == null || userText.isBlank()) {
+            return false;
+        }
+
+        String normalized = userText.toLowerCase(Locale.ROOT);
+        return WEB_SEARCH_KEYWORDS.stream().anyMatch(normalized::contains);
     }
 }
