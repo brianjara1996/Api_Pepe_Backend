@@ -63,6 +63,9 @@ public class OpenAiResponseClient {
                             "content", List.of(Map.of("type", "input_text", "text", userText))
                     )
             ));
+            payload.put("tools", List.of(
+                    Map.of("type", "web_search")
+            ));
             payload.put("text", Map.of(
                     "format", Map.of(
                             "type", "json_schema",
@@ -110,6 +113,9 @@ public class OpenAiResponseClient {
                 - usa frasi brevi e calde
                 - non usare linguaggio tecnico
                 - sii paziente, gentile e rassicurante
+                - usa web search solo se la domanda richiede dati attuali o recenti (partite, meteo, notizie, prezzi, orari, borsa)
+                - se la domanda non richiede dati attuali, non usare internet e rispondi direttamente
+                - non inventare mai informazioni attuali: se non trovi dati affidabili, dillo chiaramente
                 - se l'utente chiede di mandare un messaggio, imposta action.type = send_whatsapp
                 - se l'utente chiede di leggere l'ultimo messaggio, imposta action.type = read_last_whatsapp_message
                 - se non serve alcuna azione, imposta action.type = conversation
