@@ -6,7 +6,8 @@ import com.pepe.backend.dto.PepeResponseDto;
 import com.pepe.backend.dto.TextProcessRequest;
 import com.pepe.backend.model.AiAction;
 import com.pepe.backend.model.AiDecision;
-import com.pepe.backend.openai.GeminiResponseClient;
+import com.pepe.backend.openai.OpenAiResponseClient;
+import com.pepe.backend.openai.OpenAiSpeechClient;
 import com.pepe.backend.whatsapp.WhatsappService;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -14,14 +15,17 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class PepeService {
 
-    private final GeminiResponseClient responseClient;
+    private final OpenAiResponseClient responseClient;
+    private final OpenAiSpeechClient speechClient;
     private final WhatsappService whatsappService;
     private final PepeAppProperties appProperties;
 
-    public PepeService(GeminiResponseClient responseClient,
+    public PepeService(OpenAiResponseClient responseClient,
+                       OpenAiSpeechClient speechClient,
                        WhatsappService whatsappService,
                        PepeAppProperties appProperties) {
         this.responseClient = responseClient;
+        this.speechClient = speechClient;
         this.whatsappService = whatsappService;
         this.appProperties = appProperties;
     }
@@ -44,12 +48,12 @@ public class PepeService {
         dto.setTranscript(request.getText());
         dto.setReplyText(decision.getReplyText());
         dto.setAction(actionDto);
-        dto.setAudioBase64(null); // por ahora desactivado
+        dto.setAudioBase64(speechClient.speakToBase64(decision.getReplyText()));
         return dto;
     }
 
     public PepeResponseDto processVoice(MultipartFile audio, String profileName, String familyTarget) {
-        throw new UnsupportedOperationException("Per ora prova solo /api/text/process con Gemini.");
+        throw new UnsupportedOperationException("Per ora prova solo /api/text/process con OpenAI.");
     }
 
     private PepeActionDto executeAction(AiAction action) {
