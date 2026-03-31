@@ -3,11 +3,16 @@ package com.pepe.backend.openai;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pepe.backend.config.GeminiProperties;
+import com.pepe.backend.exception.AiQuotaExceededException;
+import com.pepe.backend.exception.AiServiceUnavailableException;
 import com.pepe.backend.model.AiAction;
 import com.pepe.backend.model.AiDecision;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
 import java.util.Map;
@@ -15,6 +20,7 @@ import java.util.Map;
 @Component
 public class GeminiResponseClient {
 
+    private static final Logger log = LoggerFactory.getLogger(GeminiResponseClient.class);
     private final RestClient restClient;
     private final GeminiProperties properties;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -81,6 +87,10 @@ public class GeminiResponseClient {
                     .retrieve()
                     .body(JsonNode.class);
 
+            if (response == null || !response.path("choices").isArray() || response.path("choices").isEmpty()) {
+                throw new AiServiceUnavailableException("Empty or invalid response from AI provider");
+            }
+
             JsonNode message = response.path("choices").get(0).path("message");
 
             AiDecision decision = new AiDecision();
@@ -118,9 +128,19 @@ public class GeminiResponseClient {
 
             return decision;
 
+        } catch (RestClientResponseException e) {
+            if (e.getStatusCode().value() == 429) {
+                throw new AiQuotaExceededException("AI provider quota exceeded", e);
+            }
+            if (e.getStatusCode().is5xxServerError()) {
+                throw new AiServiceUnavailableException("AI provider is unavailable", e);
+            }
+            throw new AiServiceUnavailableException("AI request failed with status " + e.getStatusCode().value(), e);
+        } catch (AiQuotaExceededException | AiServiceUnavailableException e) {
+            throw e;
         } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Gemini response processing failed: " + e.getMessage(), e);
+            log.error("Gemini response processing failed", e);
+            throw new AiServiceUnavailableException("Unexpected AI processing error", e);
         }
     }
 
