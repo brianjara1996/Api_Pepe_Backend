@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pepe.backend.config.OpenAiProperties;
 import com.pepe.backend.model.AiAction;
 import com.pepe.backend.model.AiDecision;
+import com.pepe.backend.service.WebLookupDecider;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -18,11 +19,13 @@ public class OpenAiResponseClient {
 
     private final RestClient restClient;
     private final OpenAiProperties properties;
+    private final WebLookupDecider webLookupDecider;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public OpenAiResponseClient(RestClient restClient, OpenAiProperties properties) {
+    public OpenAiResponseClient(RestClient restClient, OpenAiProperties properties, WebLookupDecider webLookupDecider) {
         this.restClient = restClient;
         this.properties = properties;
+        this.webLookupDecider = webLookupDecider;
     }
 
     public AiDecision askPepe(String userText,
@@ -63,9 +66,11 @@ public class OpenAiResponseClient {
                             "content", List.of(Map.of("type", "input_text", "text", userText))
                     )
             ));
-            payload.put("tools", List.of(
-                    Map.of("type", "web_search")
-            ));
+            if (webLookupDecider.shouldUseWebSearch(userText)) {
+                payload.put("tools", List.of(
+                        Map.of("type", "web_search")
+                ));
+            }
             payload.put("text", Map.of(
                     "format", Map.of(
                             "type", "json_schema",
@@ -113,11 +118,6 @@ public class OpenAiResponseClient {
                 - usa frasi brevi e calde
                 - non usare linguaggio tecnico
                 - sii paziente, gentile e rassicurante
-                - decidi prima se serve il web seguendo questa separazione:
-                  - Risposte rapide SENZA web: charla normal, preguntas personales, recordatorios, mensajes
-                  - Risposte CON web: partidos, noticias, clima, precios, horarios
-                - usa web search solo per le categorie con web (partidos, noticias, clima, precios, horarios)
-                - per le categorie senza web non usare internet e rispondi direttamente
                 - non inventare mai informazioni attuali: se non trovi dati affidabili, dillo chiaramente
                 - se l'utente chiede di mandare un messaggio, imposta action.type = send_whatsapp
                 - se l'utente chiede di leggere l'ultimo messaggio, imposta action.type = read_last_whatsapp_message

@@ -14,7 +14,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -31,15 +30,18 @@ public class PepeService {
     private final OpenAiSpeechClient speechClient;
     private final WhatsappService whatsappService;
     private final PepeAppProperties appProperties;
+    private final WebLookupDecider webLookupDecider;
 
     public PepeService(OpenAiResponseClient responseClient,
                        OpenAiSpeechClient speechClient,
                        WhatsappService whatsappService,
-                       PepeAppProperties appProperties) {
+                       PepeAppProperties appProperties,
+                       WebLookupDecider webLookupDecider) {
         this.responseClient = responseClient;
         this.speechClient = speechClient;
         this.whatsappService = whatsappService;
         this.appProperties = appProperties;
+        this.webLookupDecider = webLookupDecider;
     }
 
     public PepeResponseDto processText(TextProcessRequest request) {
@@ -133,7 +135,7 @@ public class PepeService {
                 )
         );
 
-        boolean needsWebLookup = needsWebLookup(request.getText());
+        boolean needsWebLookup = webLookupDecider.shouldUseWebSearch(request.getText());
         AiDecision decision;
 
         while (true) {
@@ -162,21 +164,4 @@ public class PepeService {
         return dto;
     }
 
-    private boolean needsWebLookup(String text) {
-        if (text == null || text.isBlank()) {
-            return false;
-        }
-
-        String normalized = text.toLowerCase(Locale.ROOT);
-        return normalized.contains("partit")
-                || normalized.contains("notiz")
-                || normalized.contains("news")
-                || normalized.contains("clima")
-                || normalized.contains("meteo")
-                || normalized.contains("prezz")
-                || normalized.contains("borsa")
-                || normalized.contains("orar")
-                || normalized.contains("treno")
-                || normalized.contains("volo");
-    }
 }
