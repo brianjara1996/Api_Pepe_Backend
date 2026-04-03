@@ -1,9 +1,11 @@
 package com.pepe.backend.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public class TextProcessRequest {
-    @NotBlank
+    @NotBlank(message = "text is required")
+    @Size(max = 2000, message = "text must be at most 2000 characters")
     private String text;
     private String profileName;
     private String familyTarget;
